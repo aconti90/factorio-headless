@@ -31,6 +31,8 @@ RUN apt-get update \
 
 WORKDIR /build
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN set -eux; \
     test -n "${FACTORIO_VERSION}" || { echo "FACTORIO_VERSION build-arg is required" >&2; exit 1; }; \
     case "${TARGETARCH}" in \
@@ -68,18 +70,20 @@ FROM debian:${DEBIAN_TAG} AS runtime
 ARG PUID=845
 ARG PGID=845
 
-# jq   - safe JSON generation for server-settings.json et al
-# gosu - clean privilege drop when the container is started as root
-# tini - PID 1 that reaps zombies and forwards SIGTERM for clean save-on-exit
+# jq     - safe JSON generation for server-settings.json et al
+# gosu   - clean privilege drop when the container is started as root
+# tini   - PID 1 that reaps zombies and forwards SIGTERM for clean save-on-exit
+# procps - provides pgrep, used by healthcheck.sh to find the server process
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       gosu \
       jq \
+      procps \
       tini \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd -g "${PGID}" factorio \
- && useradd -u "${PUID}" -g "${PGID}" -d /factorio -s /usr/sbin/nologin factorio
+ && useradd -l -u "${PUID}" -g "${PGID}" -d /factorio -s /usr/sbin/nologin factorio
 
 COPY --from=downloader /opt/factorio /opt/factorio
 COPY entrypoint.sh healthcheck.sh /usr/local/bin/
