@@ -105,6 +105,7 @@ jobs:
       channels: ${{ matrix.release.channels }}
       platforms: ${{ matrix.release.platforms }}
       sha256: ${{ toJson(matrix.release.sha256) }}
+    secrets: inherit
     permissions:
       contents: read
       packages: write
