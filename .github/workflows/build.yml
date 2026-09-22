@@ -62,7 +62,7 @@ jobs:
       # Only needed for the *final* stage on cross-builds. The download stage
       # pins itself to $BUILDPLATFORM, so the expensive part (fetch + unpack)
       # always runs natively — see docker/Dockerfile.
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 
