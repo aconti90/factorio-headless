@@ -8,6 +8,7 @@ for every upstream release on both the stable and experimental channels.
 
 ```
 ghcr.io/aconti90/factorio-headless
+docker.io/aconti90/factorio-headless
 ```
 
 | | |
@@ -38,6 +39,12 @@ Then, once on GitHub:
    settings → *Change visibility*, if you want others to pull it. Public images
    on ghcr.io have no storage or bandwidth cost, and public repos get unlimited
    Actions minutes — the whole pipeline runs on the free tier.
+4. *(Optional)* To also publish to Docker Hub, add a repository **variable**
+   named `DOCKERHUB_USERNAME` (your Docker Hub username) and a repository
+   **secret** named `DOCKERHUB_TOKEN` (an access token with Read & Write
+   scope, from Docker Hub's Account Settings → Security → New Access Token)
+   under **Settings → Secrets and variables → Actions**. Leave both unset to
+   publish to GHCR only — nothing else changes.
 
 ## Why another Factorio image?
 
@@ -228,8 +235,12 @@ your players need the experimental branch on Steam too.
         │
         ├─ group channels by version, skip anything already in the registry
         ▼
-  build.yml ──► buildx ──► ghcr.io  (+ SBOM, provenance attestation)
+  build.yml ──► buildx ──► ghcr.io + Docker Hub*  (+ SBOM; provenance attestation on ghcr.io only)
 ```
+
+\* Docker Hub publishing is optional — set via the `DOCKERHUB_USERNAME` repo
+variable and `DOCKERHUB_TOKEN` repo secret. Unset, the pipeline publishes to
+ghcr.io only.
 
 Three design decisions worth knowing about, since they're the ones that make it
 correct rather than merely working:
