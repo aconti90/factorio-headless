@@ -69,11 +69,22 @@ MAP_SETTINGS_FILE="${FACTORIO_DIR}/config/map-settings.json"
 ADMINLIST_FILE="${FACTORIO_DIR}/config/server-adminlist.json"
 WHITELIST_FILE="${FACTORIO_DIR}/config/server-whitelist.json"
 BANLIST_FILE="${FACTORIO_DIR}/config/server-banlist.json"
+CONFIG_INI="${FACTORIO_DIR}/config/config.ini"
 
 # Seed the map-generation files from upstream examples so they are easy to edit,
 # but never overwrite what the operator has already put there.
 [ -f "${MAP_GEN_FILE}" ]      || cp "${FACTORIO_HOME}/data/map-gen-settings.example.json" "${MAP_GEN_FILE}"
 [ -f "${MAP_SETTINGS_FILE}" ] || cp "${FACTORIO_HOME}/data/map-settings.example.json"     "${MAP_SETTINGS_FILE}"
+
+# Without this, Factorio's write-data path defaults to alongside its own binary
+# (${FACTORIO_HOME}), not the volume — so mods/saves/script-output would resolve
+# outside ${FACTORIO_DIR}, and --start-server-load-latest (which takes no path
+# argument) would find nothing there since the Dockerfile deletes that directory.
+[ -f "${CONFIG_INI}" ] || cat > "${CONFIG_INI}" <<EOF
+[path]
+read-data=${FACTORIO_HOME}/data
+write-data=${FACTORIO_DIR}
+EOF
 
 # --------------------------------------------------------------------------
 # 3. server-settings.json
@@ -190,7 +201,8 @@ if [ ${#existing_saves[@]} -eq 0 ]; then
     "${BIN}" \
       --create "${SAVE_PATH}" \
       --map-gen-settings "${MAP_GEN_FILE}" \
-      --map-settings "${MAP_SETTINGS_FILE}"
+      --map-settings "${MAP_SETTINGS_FILE}" \
+      --config "${CONFIG_INI}"
   else
     die "no save found in ${FACTORIO_DIR}/saves and GENERATE_NEW_SAVE=false"
   fi
@@ -206,6 +218,7 @@ args=(
   --server-settings "${SETTINGS_FILE}"
   --server-banlist "${BANLIST_FILE}"
   --server-id "${FACTORIO_DIR}/config/server-id.json"
+  --config "${CONFIG_INI}"
 )
 
 # Prefer the newest save unless the operator pinned one by name.
