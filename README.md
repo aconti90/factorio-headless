@@ -8,8 +8,10 @@ for every upstream release on both the stable and experimental channels.
 
 ```
 ghcr.io/aconti90/factorio-headless
-docker.io/aconti90/factorio-headless
+docker.io/aconti90/factorio-headless *
 ```
+
+\* Optional — see "Setting it up as your own" below.
 
 | | |
 |---|---|
@@ -41,10 +43,12 @@ Then, once on GitHub:
    Actions minutes — the whole pipeline runs on the free tier.
 4. *(Optional)* To also publish to Docker Hub, add a repository **variable**
    named `DOCKERHUB_USERNAME` (your Docker Hub username) and a repository
-   **secret** named `DOCKERHUB_TOKEN` (an access token with Read & Write
-   scope, from Docker Hub's Account Settings → Security → New Access Token)
-   under **Settings → Secrets and variables → Actions**. Leave both unset to
-   publish to GHCR only — nothing else changes.
+   **secret** named `DOCKERHUB_TOKEN` (an access token with Read, Write,
+   Delete scope, from Docker Hub's Account Settings → Security → New Access
+   Token) under **Settings → Secrets and variables → Actions**. Leave both
+   unset to publish to GHCR only — nothing else changes. Setting the config
+   only affects future publishes (see step 2 above to trigger one
+   immediately) — it won't retroactively publish versions already on GHCR.
 
 ## Why another Factorio image?
 

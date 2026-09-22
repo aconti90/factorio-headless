@@ -101,7 +101,7 @@ jobs:
           dockerhub_image=""
           images=("${GHCR_IMAGE}")
           if [ -n "${DOCKERHUB_USERNAME}" ]; then
-            dockerhub_image="${DOCKERHUB_USERNAME}/${repo_name,,}"
+            dockerhub_image="${DOCKERHUB_USERNAME,,}/${repo_name,,}"
             images+=("${dockerhub_image}")
           fi
 
@@ -180,6 +180,7 @@ jobs:
 
       - name: Sync Docker Hub description
         if: vars.DOCKERHUB_USERNAME != ''
+        continue-on-error: true
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
