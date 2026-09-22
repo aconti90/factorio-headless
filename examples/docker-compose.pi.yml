@@ -7,7 +7,7 @@
 
 services:
   factorio:
-    image: ghcr.io/OWNER/REPO:experimental
+    image: ghcr.io/aconti90/factorio-headless:experimental
     container_name: factorio
     restart: unless-stopped
 

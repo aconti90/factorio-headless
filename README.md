@@ -3,11 +3,11 @@
 Multi-arch Docker images for the **Factorio headless server**, built automatically
 for every upstream release on both the stable and experimental channels.
 
-[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
-[![Release watch](https://github.com/OWNER/REPO/actions/workflows/release-watch.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/release-watch.yml)
+[![CI](https://github.com/aconti90/factorio-headless/actions/workflows/ci.yml/badge.svg)](https://github.com/aconti90/factorio-headless/actions/workflows/ci.yml)
+[![Release watch](https://github.com/aconti90/factorio-headless/actions/workflows/release-watch.yml/badge.svg)](https://github.com/aconti90/factorio-headless/actions/workflows/release-watch.yml)
 
 ```
-ghcr.io/OWNER/REPO
+ghcr.io/aconti90/factorio-headless
 ```
 
 | | |
@@ -24,7 +24,7 @@ ghcr.io/OWNER/REPO
 
 ```bash
 git remote add origin git@github.com:you/factorio-server-docker.git
-scripts/init.sh                 # rewrites the OWNER/REPO placeholders
+scripts/init.sh                 # rewrites the aconti90/factorio-headless placeholders
 git add -A && git commit -m "Initial commit" && git push
 ```
 
@@ -63,7 +63,7 @@ docker run -d \
   -e RCON_PASSWORD=change-me \
   --restart unless-stopped \
   --stop-timeout 120 \
-  ghcr.io/OWNER/REPO:stable
+  ghcr.io/aconti90/factorio-headless:stable
 ```
 
 On first run the image lays out the data volume, renders a `server-settings.json`
@@ -189,7 +189,7 @@ a world-generation setting rather than something the server can change later:
 ```bash
 # Before first start — edit the map-gen settings on the volume, then let the
 # image generate the map from them.
-docker run --rm -v "$PWD/factorio-data:/factorio" ghcr.io/OWNER/REPO:stable \
+docker run --rm -v "$PWD/factorio-data:/factorio" ghcr.io/aconti90/factorio-headless:stable \
   sh -c 'cat /factorio/config/map-gen-settings.json'
 ```
 

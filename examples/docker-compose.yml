@@ -1,6 +1,6 @@
 services:
   factorio:
-    image: ghcr.io/OWNER/REPO:stable
+    image: ghcr.io/aconti90/factorio-headless:stable
     container_name: factorio
     restart: unless-stopped
 
