@@ -52,7 +52,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ghcr.io image names must be lowercase; repository owners often are not.
       - name: Compute image name
