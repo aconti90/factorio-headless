@@ -1,0 +1,27 @@
+services:
+  factorio:
+    image: ghcr.io/OWNER/REPO:stable
+    container_name: factorio
+    restart: unless-stopped
+
+    ports:
+      - "34197:34197/udp"     # game traffic — must be reachable by players
+      - "27015:27015/tcp"     # RCON — keep this on localhost or a private network
+
+    volumes:
+      - ./data:/factorio
+
+    environment:
+      NAME: "My Factorio Server"
+      DESCRIPTION: "Running in Docker"
+      RCON_PASSWORD: "${RCON_PASSWORD:?set RCON_PASSWORD in .env}"
+
+      # Match the host user that owns ./data so saves stay editable.
+      PUID: 1000
+      PGID: 1000
+
+    stop_grace_period: 2m     # give the server time to save before SIGKILL
+
+    # Factorio's simulation is single-threaded; capping memory is sensible,
+    # capping CPU generally is not — it just lowers achievable UPS.
+    mem_limit: 4g

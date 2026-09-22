@@ -1,0 +1,5 @@
+ignored:
+  # Debian base images are rebuilt continuously for security fixes; pinning apt
+  # package versions here would mean shipping known-vulnerable packages until a
+  # human notices. The base image tag is pinned instead, and Dependabot bumps it.
+  - DL3008

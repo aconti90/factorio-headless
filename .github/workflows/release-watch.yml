@@ -1,0 +1,112 @@
+name: Watch for Factorio releases
+
+# Polls the official releases API and builds anything not yet published.
+#
+# Wube asks integrators to use https://factorio.com/api/latest-releases rather
+# than polling the download endpoint (rate-limited, and historically abused by
+# servers re-downloading in a loop). This workflow does that, and treats the
+# registry as the record of what has already been built — so there is no state
+# to commit back to the repo and no way for the two to drift apart.
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'    # four times a day, off the hour to avoid the stampede
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild even if the tag already exists in the registry
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-watch
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to registry (for manifest lookups)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Plan builds
+        id: plan
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+          # Resolve both channels first. They frequently point at the same
+          # build (whenever experimental has just been promoted), so group by
+          # version and carry the set of channels that refer to it. Building
+          # per-version rather than per-channel means one push, one digest, and
+          # both channel tags applied together.
+          releases='[]'
+          for channel in stable experimental; do
+            echo "::group::resolve ${channel}"
+            release="$(./scripts/resolve-release.sh "${channel}")"
+            echo "${release}"
+            releases="$(jq -c --argjson r "${release}" '. + [$r]' <<<"${releases}")"
+            echo "::endgroup::"
+          done
+
+          grouped="$(jq -c '
+            group_by(.version)
+            | map({
+                version:   .[0].version,
+                platforms: .[0].platforms,
+                sha256:    .[0].sha256,
+                channels:  (map(.channel) | sort | join(","))
+              })
+          ' <<<"${releases}")"
+
+          builds='[]'
+          while read -r entry; do
+            [ -n "${entry}" ] || continue
+            version="$(jq -r .version <<<"${entry}")"
+            if [ "${FORCE}" != "true" ] && docker manifest inspect "${image}:${version}" >/dev/null 2>&1; then
+              echo "${image}:${version} already published — skipping"
+            else
+              builds="$(jq -c --argjson e "${entry}" '. + [$e]' <<<"${builds}")"
+              echo "queued ${version} (channels: $(jq -r .channels <<<"${entry}"))"
+            fi
+          done < <(jq -c '.[]' <<<"${grouped}")
+
+          count="$(jq length <<<"${builds}")"
+          {
+            echo "builds=${builds}"
+            if [ "${count}" -gt 0 ]; then echo "any=true"; else echo "any=false"; fi
+          } >> "$GITHUB_OUTPUT"
+          jq . <<<"${builds}"
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.any == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ${{ fromJson(needs.resolve.outputs.builds) }}
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ matrix.release.version }}
+      channels: ${{ matrix.release.channels }}
+      platforms: ${{ matrix.release.platforms }}
+      sha256: ${{ toJson(matrix.release.sha256) }}
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write

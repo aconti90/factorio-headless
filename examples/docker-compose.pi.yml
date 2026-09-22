@@ -1,0 +1,39 @@
+# Raspberry Pi 5 (arm64).
+#
+# The arm64 headless build currently ships on the experimental channel only —
+# see the README. Pin a version tag once you have one you like rather than
+# tracking :experimental indefinitely, so an upstream change cannot break a
+# running server unattended.
+
+services:
+  factorio:
+    image: ghcr.io/OWNER/REPO:experimental
+    container_name: factorio
+    restart: unless-stopped
+
+    ports:
+      - "34197:34197/udp"
+      - "127.0.0.1:27015:27015/tcp"   # RCON bound to loopback only
+
+    volumes:
+      - ./data:/factorio
+
+    environment:
+      NAME: "Pi Factorio"
+      RCON_PASSWORD: "${RCON_PASSWORD:?set RCON_PASSWORD in .env}"
+      PUID: 1000
+      PGID: 1000
+
+      # Keep the world simulating while nobody is connected, so the factory
+      # keeps producing between check-ins.
+      AUTO_PAUSE: "false"
+
+      # Autosaves are the main source of SD-card write amplification; 15 minutes
+      # with a few slots is a reasonable compromise. Point ./data at an SSD or
+      # NVMe HAT if you have one.
+      AUTOSAVE_INTERVAL: 15
+      AUTOSAVE_SLOTS: 3
+      NON_BLOCKING_SAVING: "true"
+
+    stop_grace_period: 2m
+    mem_limit: 3g

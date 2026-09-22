@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck docker/entrypoint.sh docker/healthcheck.sh scripts/*.sh
+
+      - name: Validate compose examples
+        run: |
+          for f in examples/docker-compose*.yml; do
+            echo "==> $f"
+            docker compose -f "$f" --env-file examples/.env.example config >/dev/null
+          done
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile
+
+  # Proves the image still builds against the current upstream release, without
+  # publishing anything. Single-arch to keep PR feedback fast.
+  build-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Resolve current stable release
+        id: release
+        run: ./scripts/resolve-release.sh stable | jq -r '"version=" + .version' >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: factorio-server:ci
+          build-args: FACTORIO_VERSION=${{ steps.release.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test — server boots, generates a map, and answers healthcheck
+        run: |
+          set -euo pipefail
+          docker run -d --name factorio-ci \
+            -e NAME="CI" -e RCON_PASSWORD=ci-test \
+            -v "$(mktemp -d):/factorio" \
+            factorio-server:ci
+
+          for i in $(seq 1 60); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' factorio-ci)"
+            echo "[$i] health=${status}"
+            if [ "${status}" = "healthy" ]; then break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' factorio-ci)" != "true" ]; then
+              echo "container exited early"; docker logs factorio-ci; exit 1
+            fi
+            sleep 5
+          done
+
+          [ "$(docker inspect -f '{{.State.Health.Status}}' factorio-ci)" = "healthy" ] || {
+            docker logs factorio-ci; exit 1; }
+
+          # A clean SIGTERM must save and exit rather than be killed at timeout.
+          docker stop -t 30 factorio-ci
+          docker logs factorio-ci | tail -20
