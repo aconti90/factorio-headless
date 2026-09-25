@@ -61,9 +61,16 @@ jobs:
       - name: Smoke test — server boots, generates a map, and answers healthcheck
         run: |
           set -euo pipefail
+          # Port 8000 is published here (before anything is listening on it) so that
+          # the exporter container, which later joins this container's network
+          # namespace via --network container:factorio-ci, can be curled from the
+          # runner's host shell once it starts serving metrics. A container using
+          # --network container:X cannot itself publish ports, so the publish has
+          # to happen on the base container instead.
           docker run -d --name factorio-ci \
             -e NAME="CI" -e RCON_PASSWORD=ci-test \
             -v "$(mktemp -d):/factorio" \
+            -p 8000:8000 \
             factorio-server:ci
 
           for i in $(seq 1 60); do
@@ -79,6 +86,43 @@ jobs:
           [ "$(docker inspect -f '{{.State.Health.Status}}' factorio-ci)" = "healthy" ] || {
             docker logs factorio-ci; exit 1; }
 
+      - name: Build exporter image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./exporter
+          push: false
+          load: true
+          tags: factorio-exporter:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Exporter integration test — real metrics from the running server
+        run: |
+          set -euo pipefail
+          docker run -d --name exporter-ci \
+            --network container:factorio-ci \
+            -e FACTORIO_HOST=127.0.0.1 \
+            -e RCON_PASSWORD=ci-test \
+            -e POLL_INTERVAL_SECONDS=5 \
+            factorio-exporter:ci
+
+          for i in $(seq 1 12); do
+            if curl -sf http://127.0.0.1:8000/metrics >/dev/null; then break; fi
+            sleep 5
+          done
+
+          metrics="$(curl -sf http://127.0.0.1:8000/metrics)"
+          echo "${metrics}" | grep -q '^factorio_tick_total' || {
+            echo "factorio_tick_total missing from exporter output"; echo "${metrics}"; exit 1; }
+          echo "${metrics}" | grep -q '^factorio_players_connected' || {
+            echo "factorio_players_connected missing from exporter output"; echo "${metrics}"; exit 1; }
+
+          docker logs exporter-ci
+          docker rm -f exporter-ci
+
+      - name: Stop server cleanly
+        run: |
+          set -euo pipefail
           # A clean SIGTERM must save and exit rather than be killed at timeout.
           docker stop -t 30 factorio-ci
           docker logs factorio-ci | tail -20
