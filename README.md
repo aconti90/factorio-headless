@@ -5,6 +5,9 @@ for every upstream release on both the stable and experimental channels.
 
 [![CI](https://github.com/aconti90/factorio-headless/actions/workflows/ci.yml/badge.svg)](https://github.com/aconti90/factorio-headless/actions/workflows/ci.yml)
 [![Release watch](https://github.com/aconti90/factorio-headless/actions/workflows/release-watch.yml/badge.svg)](https://github.com/aconti90/factorio-headless/actions/workflows/release-watch.yml)
+[![Docker pulls](https://img.shields.io/docker/pulls/aconti90/factorio-headless)](https://hub.docker.com/r/aconti90/factorio-headless)
+[![Image size](https://img.shields.io/docker/image-size/aconti90/factorio-headless/stable)](https://hub.docker.com/r/aconti90/factorio-headless)
+[![License](https://img.shields.io/github/license/aconti90/factorio-headless)](LICENSE)
 
 ```
 ghcr.io/aconti90/factorio-headless
@@ -290,9 +293,7 @@ for it, and any published checksums.
 
 ## Contributing
 
-`ci.yml` runs shellcheck, hadolint, compose validation, and a real smoke test
-that boots the server, waits for the healthcheck to go green, and verifies a
-clean SIGTERM shutdown. Run the linters locally with `scripts/lint.sh`.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
