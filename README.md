@@ -235,7 +235,11 @@ cp examples/.env.observability.example examples/.env
 docker compose -f examples/docker-compose.observability.yml up -d
 ```
 
-**On some Docker versions on a Raspberry Pi**, `up -d` fails with `no
+**On a Raspberry Pi (arm64)**, uncomment `FACTORIO_TAG=experimental` in your
+`.env` too — stable has no arm64 build yet (see [Tags](#tags) above), so the
+`factorio` service fails to pull without it.
+
+**On some Docker versions on a Raspberry Pi**, `up -d` also fails with `no
 matching manifest for linux/arm64/v8` for the Prometheus/Loki/Promtail/
 Grafana images — those upstream images publish an arm64 build but don't tag
 it with an explicit "v8" variant, and some Docker versions match that

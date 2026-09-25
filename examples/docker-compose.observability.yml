@@ -14,10 +14,14 @@
 # match strictly and refuse the pull with "no matching manifest for
 # linux/arm64/v8". If you hit that, set DOCKER_PLATFORM=linux/arm64 in
 # your .env — left unset (the default), this has no effect on any host.
+#
+# FACTORIO_TAG defaults to "stable". On arm64 (e.g. a Raspberry Pi), set it
+# to "experimental" in your .env — see the main README's Tags section:
+# arm64 headless builds aren't published on the stable channel yet.
 
 services:
   factorio:
-    image: ghcr.io/aconti90/factorio-headless:stable
+    image: ghcr.io/aconti90/factorio-headless:${FACTORIO_TAG:-stable}
     container_name: factorio
     restart: unless-stopped
 
