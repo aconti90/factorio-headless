@@ -5,8 +5,9 @@
 #   1. normalise ownership of the data volume and drop root (if started as root)
 #   2. lay out the volume on first run
 #   3. render server-settings.json (and friends) from environment variables
-#   4. create a save if none exists
-#   5. exec the server so it receives signals directly
+#   4. update mods against the portal, if UPDATE_MODS=true
+#   5. create a save if none exists
+#   6. exec the server so it receives signals directly
 set -euo pipefail
 
 FACTORIO_DIR="${FACTORIO_DIR:-/factorio}"
@@ -186,7 +187,15 @@ if [ ! -f "${BANLIST_FILE}" ]; then
 fi
 
 # --------------------------------------------------------------------------
-# 4. save file
+# 4. mods
+# --------------------------------------------------------------------------
+if [ "$(jqbool "${UPDATE_MODS:-false}")" = "true" ]; then
+  log "UPDATE_MODS=true, checking mods against the portal"
+  /usr/local/bin/update-mods.sh
+fi
+
+# --------------------------------------------------------------------------
+# 5. save file
 # --------------------------------------------------------------------------
 SAVE_NAME="${SAVE_NAME:-default}"
 SAVE_PATH="${FACTORIO_DIR}/saves/${SAVE_NAME}.zip"
@@ -211,7 +220,7 @@ else
 fi
 
 # --------------------------------------------------------------------------
-# 5. launch
+# 6. launch
 # --------------------------------------------------------------------------
 args=(
   --port "${PORT:-34197}"
