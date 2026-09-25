@@ -223,9 +223,9 @@ UPS, player count, power), Loki for readable server logs — with both
 dashboards already provisioned:
 
 ```bash
-cp examples/docker-compose.observability.yml docker-compose.yml
-cp examples/.env.observability.example .env      # set RCON_PASSWORD and GRAFANA_ADMIN_PASSWORD
-docker compose up -d
+cp examples/.env.observability.example examples/.env
+# edit examples/.env: set RCON_PASSWORD and GRAFANA_ADMIN_PASSWORD
+docker compose -f examples/docker-compose.observability.yml up -d
 ```
 
 Open Grafana at `http://localhost:3000` (login with the admin password you
