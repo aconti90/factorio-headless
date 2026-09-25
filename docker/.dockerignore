@@ -1,4 +1,5 @@
 *
 !entrypoint.sh
 !healthcheck.sh
+!update-mods.sh
 !Dockerfile
