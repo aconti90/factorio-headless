@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussion
+    url: https://github.com/aconti90/factorio-headless/discussions
+    about: >-
+      Ask "how do I configure X" or "has anyone run this on Y" questions
+      here instead of opening an issue.

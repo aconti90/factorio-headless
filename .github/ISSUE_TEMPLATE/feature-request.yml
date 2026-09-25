@@ -1,0 +1,25 @@
+name: Feature or config request
+description: Request a new environment variable, config option, or behavior change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What's missing
+      description: What config/behavior would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What are you trying to do that this would help with?
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+      description: How are you working around this today, if at all?
+    validations:
+      required: false
