@@ -290,9 +290,7 @@ for it, and any published checksums.
 
 ## Contributing
 
-`ci.yml` runs shellcheck, hadolint, compose validation, and a real smoke test
-that boots the server, waits for the healthcheck to go green, and verifies a
-clean SIGTERM shutdown. Run the linters locally with `scripts/lint.sh`.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
