@@ -17,7 +17,10 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck docker/entrypoint.sh docker/healthcheck.sh scripts/*.sh
+          shellcheck docker/entrypoint.sh docker/healthcheck.sh docker/update-mods.sh scripts/*.sh
+
+      - name: Run update-mods unit tests
+        run: bash scripts/test-update-mods.sh
 
       - name: Validate compose examples
         run: |

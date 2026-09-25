@@ -164,6 +164,28 @@ have the image leave it alone.
 | `AUTOSAVE_SLOTS` | `5` | |
 | `NON_BLOCKING_SAVING` | `false` | Avoids a stutter on save; uses more RAM |
 
+### Mods
+
+Drop mod zips into the `mods/` directory on the volume and restart the
+container — same as a normal Factorio install.
+
+To keep mods already there up to date automatically, set `UPDATE_MODS=true`.
+On every boot the image checks each mod against the Factorio mod portal and
+replaces it if a newer version compatible with the running server exists.
+This only updates mods that are already present; it does not install new
+ones or resolve dependencies.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `UPDATE_MODS` | `false` | Check mods against the portal and update them on boot. Requires `FACTORIO_USERNAME`/`FACTORIO_TOKEN`. |
+| `MODS_IGNORE` | — | Comma-separated mod names to exclude from updates |
+
+The update check runs before the server starts, so it delays startup and needs
+outbound HTTPS access to `mods.factorio.com`. If `UPDATE_MODS=true` and
+`FACTORIO_USERNAME`/`FACTORIO_TOKEN` aren't set, the container refuses to
+start. A mod the portal doesn't recognize (e.g. a private/local mod) is left
+untouched with a logged warning, not treated as an error.
+
 ### Container
 
 | Variable | Default | Notes |

@@ -7,7 +7,7 @@ fail=0
 
 if command -v shellcheck >/dev/null; then
   echo "==> shellcheck"
-  shellcheck docker/entrypoint.sh docker/healthcheck.sh scripts/*.sh || fail=1
+  shellcheck docker/entrypoint.sh docker/healthcheck.sh docker/update-mods.sh scripts/*.sh || fail=1
 else
   echo "==> shellcheck not installed, skipping" >&2
 fi
@@ -26,5 +26,8 @@ done
 
 echo "==> bash -n"
 for f in docker/*.sh scripts/*.sh; do bash -n "$f" || fail=1; done
+
+echo "==> update-mods unit tests"
+bash scripts/test-update-mods.sh || fail=1
 
 exit "$fail"

@@ -74,13 +74,16 @@ FROM debian:${DEBIAN_TAG} AS runtime
 ARG PUID=845
 ARG PGID=845
 
-# jq     - safe JSON generation for server-settings.json et al
+# curl   - fetches mod portal metadata and mod zips for update-mods.sh
+# jq     - safe JSON generation for server-settings.json et al, and mod
+#          portal response parsing in update-mods.sh
 # gosu   - clean privilege drop when the container is started as root
 # tini   - PID 1 that reaps zombies and forwards SIGTERM for clean save-on-exit
 # procps - provides pgrep, used by healthcheck.sh to find the server process
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
+      curl \
       gosu \
       jq \
       procps \
@@ -90,9 +93,9 @@ RUN apt-get update \
  && useradd -l -u "${PUID}" -g "${PGID}" -d /factorio -s /usr/sbin/nologin factorio
 
 COPY --from=downloader /opt/factorio /opt/factorio
-COPY entrypoint.sh healthcheck.sh /usr/local/bin/
+COPY entrypoint.sh healthcheck.sh update-mods.sh /usr/local/bin/
 
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh \
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh /usr/local/bin/update-mods.sh \
  && mkdir -p /factorio \
  && chown -R "${PUID}:${PGID}" /factorio /opt/factorio
 
