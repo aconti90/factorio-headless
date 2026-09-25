@@ -79,9 +79,12 @@ update_one_mod() {
   fi
 
   local best_version best_url best_sha1
-  best_version="$(printf '%s' "${best}" | jq -r '.version')"
-  best_url="$(printf '%s' "${best}" | jq -r '.download_url')"
-  best_sha1="$(printf '%s' "${best}" | jq -r '.sha1')"
+  if ! { best_version="$(printf '%s' "${best}" | jq -r '.version' 2>/dev/null)" && \
+         best_url="$(printf '%s' "${best}" | jq -r '.download_url' 2>/dev/null)" && \
+         best_sha1="$(printf '%s' "${best}" | jq -r '.sha1' 2>/dev/null)"; }; then
+    warn "${name}: could not parse release metadata, leaving ${current_version} in place"
+    return 0
+  fi
 
   if ! mod_version_newer "${current_version}" "${best_version}"; then
     log "${name}: ${current_version} is already current"
@@ -99,15 +102,26 @@ update_one_mod() {
   fi
 
   local actual_sha1
-  actual_sha1="$(sha1sum "${tmp_file}" | cut -d' ' -f1)"
+  if ! actual_sha1="$(sha1sum "${tmp_file}" | cut -d' ' -f1)"; then
+    warn "${name}: could not compute checksum, leaving ${current_version} in place"
+    rm -f "${tmp_file}"
+    return 0
+  fi
   if [ "${actual_sha1}" != "${best_sha1}" ]; then
     warn "${name}: checksum mismatch after download, leaving ${current_version} in place"
     rm -f "${tmp_file}"
     return 0
   fi
 
-  rm -f "${zip_path}"
-  mv "${tmp_file}" "${MODS_DIR}/${name}_${best_version}.zip"
+  if ! rm -f "${zip_path}"; then
+    warn "${name}: could not remove old version, leaving ${current_version} in place"
+    rm -f "${tmp_file}"
+    return 0
+  fi
+  if ! mv "${tmp_file}" "${MODS_DIR}/${name}_${best_version}.zip"; then
+    warn "${name}: could not move new version into place, leaving ${current_version} in place"
+    return 0
+  fi
 }
 
 main() {
