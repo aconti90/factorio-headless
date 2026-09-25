@@ -7,7 +7,11 @@
 # running it natively avoids paying QEMU emulation cost on cross-builds; the
 # target-arch binary is simply copied into the final stage, never executed here.
 
-ARG DEBIAN_TAG=bookworm-slim
+# trixie-slim (glibc 2.41), not bookworm-slim (glibc 2.36): Wube's arm64
+# headless binary requires glibc >= 2.38 and fails to start on bookworm with
+# "version `GLIBC_2.38' not found". Confirmed by booting the built image on
+# both architectures — amd64 is unaffected by the newer base.
+ARG DEBIAN_TAG=trixie-slim
 
 # ---------------------------------------------------------------------------
 # Stage 1: fetch + verify + unpack the official headless tarball
