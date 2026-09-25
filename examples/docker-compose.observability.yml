@@ -18,6 +18,9 @@
 # FACTORIO_TAG defaults to "stable". On arm64 (e.g. a Raspberry Pi), set it
 # to "experimental" in your .env — see the main README's Tags section:
 # arm64 headless builds aren't published on the stable channel yet.
+#
+# GRAFANA_PORT defaults to 3000. Set it in your .env if you already have
+# something else bound to that port on the host.
 
 services:
   factorio:
@@ -91,7 +94,7 @@ services:
       - prometheus
       - loki
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}"
     volumes:
