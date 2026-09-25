@@ -7,10 +7,10 @@ Bug reports, feature requests, and PRs are welcome.
 - `scripts/resolve-release.sh [stable|experimental]` prints the current
   Factorio version, which architectures exist for it, and any published
   checksums — the same script CI uses.
-- `scripts/lint.sh` runs the same checks CI runs: shellcheck, hadolint,
-  compose config validation, and a bash syntax check. Install `shellcheck`
-  and `hadolint` to get full coverage; the script skips whichever isn't
-  installed and still runs the rest.
+- `scripts/lint.sh` runs everything CI's lint job runs — shellcheck,
+  hadolint, and compose config validation — plus a bash syntax check CI
+  doesn't do. Install `shellcheck` and `hadolint` to get full coverage; the
+  script skips whichever isn't installed and still runs the rest.
 - The README's "Building locally" section has the commands for building the
   image itself.
 

@@ -15,6 +15,7 @@ body:
     id: architecture
     attributes:
       label: Architecture
+      description: "arm64 is currently only published on the experimental channel — see the README's Tags section."
       options:
         - amd64
         - arm64
