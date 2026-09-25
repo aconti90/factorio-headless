@@ -220,7 +220,10 @@ actually matter:
 `examples/docker-compose.observability.yml` runs Factorio alongside a full
 Grafana stack — Prometheus for factory/server stats (item production rates,
 UPS, player count, power), Loki for readable server logs — with both
-dashboards already provisioned:
+dashboards already provisioned. Unlike the other compose examples, this one
+sets `AUTO_PAUSE=false` by default, so the factory keeps running (and the
+dashboards keep showing something) even with nobody connected — a stats
+dashboard for a paused world isn't very useful.
 
 > [!WARNING]
 > **Turning this on disables achievements for the save.** The exporter polls

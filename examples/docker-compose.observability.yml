@@ -40,6 +40,12 @@ services:
       # Ships the server console to a file on the volume, which promtail
       # tails below. Existing entrypoint.sh support — no image change needed.
       CONSOLE_LOG: /factorio/console.log
+      # A stats dashboard is only interesting if the factory is actually
+      # running — without this, Factorio pauses the whole simulation
+      # whenever nobody's connected (the default), and every metric here
+      # just sits frozen. See the main README's "Keeping a world running
+      # while you work" section.
+      AUTO_PAUSE: "false"
 
   exporter:
     build: ../exporter
