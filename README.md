@@ -180,6 +180,12 @@ ones or resolve dependencies.
 | `UPDATE_MODS` | `false` | Check mods against the portal and update them on boot. Requires `FACTORIO_USERNAME`/`FACTORIO_TOKEN`. |
 | `MODS_IGNORE` | — | Comma-separated mod names to exclude from updates |
 
+The update check runs before the server starts, so it delays startup and needs
+outbound HTTPS access to `mods.factorio.com`. If `UPDATE_MODS=true` and
+`FACTORIO_USERNAME`/`FACTORIO_TOKEN` aren't set, the container refuses to
+start. A mod the portal doesn't recognize (e.g. a private/local mod) is left
+untouched with a logged warning, not treated as an error.
+
 ### Container
 
 | Variable | Default | Notes |

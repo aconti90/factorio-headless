@@ -46,7 +46,8 @@ is_ignored() {
   local items=()
   IFS=',' read -ra items <<< "$list"
   for item in "${items[@]:-}"; do
-    item="$(printf '%s' "$item" | xargs)"
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
     [ "$item" = "$name" ] && return 0
   done
   return 1
@@ -59,9 +60,16 @@ update_one_mod() {
   local zip_path="$1" name="$2" current_version="$3" factorio_line="$4"
   local username="$5" token="$6"
 
-  local api_url="https://mods.factorio.com/api/mods/${name}"
+  local name_enc
+  name_enc="$(jq -rn --arg n "${name}" '$n|@uri' 2>/dev/null)" || true
+  if [ -z "${name_enc}" ]; then
+    warn "${name}: could not URL-encode mod name, leaving ${current_version} in place"
+    return 0
+  fi
+
+  local api_url="https://mods.factorio.com/api/mods/${name_enc}"
   local releases
-  if ! releases="$(curl -fsSL "${api_url}" 2>/dev/null | jq -c '.releases // []' 2>/dev/null)"; then
+  if ! releases="$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 "${api_url}" 2>/dev/null | jq -c '.releases // []' 2>/dev/null)"; then
     warn "${name}: could not reach mod portal, leaving ${current_version} in place"
     return 0
   fi
@@ -91,10 +99,28 @@ update_one_mod() {
     return 0
   fi
 
+  if ! [[ "${best_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    warn "${name}: portal returned an invalid version '${best_version}', leaving ${current_version} in place"
+    return 0
+  fi
+  if [[ "${best_url}" != /* ]]; then
+    warn "${name}: portal returned an invalid download URL, leaving ${current_version} in place"
+    return 0
+  fi
+
   log "${name}: ${current_version} -> ${best_version}"
 
+  local username_enc token_enc
+  username_enc="$(jq -rn --arg u "${username}" '$u|@uri' 2>/dev/null)" || true
+  token_enc="$(jq -rn --arg t "${token}" '$t|@uri' 2>/dev/null)" || true
+  if [ -z "${username_enc}" ] || [ -z "${token_enc}" ]; then
+    warn "${name}: could not URL-encode credentials, leaving ${current_version} in place"
+    return 0
+  fi
+
   local tmp_file="${zip_path}.new"
-  if ! curl -fsSL "https://mods.factorio.com${best_url}?username=${username}&token=${token}" \
+  if ! curl -fsSL --connect-timeout 10 --max-time 300 --retry 2 \
+      "https://mods.factorio.com${best_url}?username=${username_enc}&token=${token_enc}" \
       -o "${tmp_file}" 2>/dev/null; then
     warn "${name}: download failed, leaving ${current_version} in place"
     rm -f "${tmp_file}"
@@ -113,15 +139,14 @@ update_one_mod() {
     return 0
   fi
 
-  if ! rm -f "${zip_path}"; then
-    warn "${name}: could not remove old version, leaving ${current_version} in place"
+  local new_zip_path="${MODS_DIR}/${name}_${best_version}.zip"
+  if ! mv "${tmp_file}" "${new_zip_path}"; then
+    warn "${name}: could not move new version into place, leaving ${current_version} in place"
     rm -f "${tmp_file}"
     return 0
   fi
-  if ! mv "${tmp_file}" "${MODS_DIR}/${name}_${best_version}.zip"; then
-    warn "${name}: could not move new version into place, ${name} may now be missing"
-    rm -f "${tmp_file}"
-    return 0
+  if ! rm -f "${zip_path}"; then
+    warn "${name}: could not remove old version ${current_version}; both ${current_version} and ${best_version} are now present on disk"
   fi
 }
 
@@ -143,6 +168,12 @@ main() {
   log "checking mods against Factorio ${factorio_line}"
 
   shopt -s nullglob
+
+  # Clean up any leftover temp files from a previous boot that was killed
+  # mid-download; nullglob is already set above so a non-matching glob
+  # expands to nothing rather than the literal pattern.
+  rm -f "${MODS_DIR}"/*.zip.new
+
   local zip_path
   for zip_path in "${MODS_DIR}"/*.zip; do
     local base parsed name current_version
