@@ -251,7 +251,8 @@ strictly. If you hit this, uncomment `DOCKER_PLATFORM=linux/arm64` in your
 `RCON_PASSWORD`. Setting `GRAFANA_ADMIN_PASSWORD` there alongside it doesn't
 conflict with those; it's just additive.
 
-Open Grafana at `http://localhost:3000` and log in as `admin` with the
+Open Grafana at `http://localhost:3000` (or whatever `GRAFANA_PORT` you set,
+if you already had something on 3000) and log in as `admin` with the
 password you set as `GRAFANA_ADMIN_PASSWORD` (only the password is
 configured — the username is always `admin`). Both the **Factorio Stats**
 and **Factorio Logs** dashboards are already there, under the "Factorio"
