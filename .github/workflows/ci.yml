@@ -26,8 +26,19 @@ jobs:
         run: |
           for f in examples/docker-compose*.yml; do
             echo "==> $f"
-            docker compose -f "$f" --env-file examples/.env.example config >/dev/null
+            case "$(basename "$f")" in
+              docker-compose.observability.yml) env_file=examples/.env.observability.example ;;
+              *) env_file=examples/.env.example ;;
+            esac
+            docker compose -f "$f" --env-file "$env_file" config >/dev/null
           done
+
+      - name: Exporter unit tests
+        run: |
+          pip install -r exporter/requirements.txt
+          cd exporter
+          python3 test_rcon.py
+          python3 test_exporter.py
 
       - name: Hadolint
         uses: hadolint/hadolint-action@v3.1.0
@@ -61,9 +72,21 @@ jobs:
       - name: Smoke test — server boots, generates a map, and answers healthcheck
         run: |
           set -euo pipefail
+          # Port 8000 is published here (before anything is listening on it) so that
+          # the exporter container, which later joins this container's network
+          # namespace via --network container:factorio-ci, can be curled from the
+          # runner's host shell once it starts serving metrics. A container using
+          # --network container:X cannot itself publish ports, so the publish has
+          # to happen on the base container instead.
+          #
+          # AUTO_PAUSE=false so the simulation keeps advancing with zero players
+          # connected — nothing in this job connects an actual game client, and
+          # the exporter integration test below needs game.tick to genuinely
+          # progress across polls, not sit frozen.
           docker run -d --name factorio-ci \
-            -e NAME="CI" -e RCON_PASSWORD=ci-test \
+            -e NAME="CI" -e RCON_PASSWORD=ci-test -e AUTO_PAUSE=false \
             -v "$(mktemp -d):/factorio" \
+            -p 8000:8000 \
             factorio-server:ci
 
           for i in $(seq 1 60); do
@@ -79,6 +102,59 @@ jobs:
           [ "$(docker inspect -f '{{.State.Health.Status}}' factorio-ci)" = "healthy" ] || {
             docker logs factorio-ci; exit 1; }
 
+      - name: Build exporter image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./exporter
+          push: false
+          load: true
+          tags: factorio-exporter:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Exporter integration test — real metrics from the running server
+        run: |
+          set -euo pipefail
+          docker run -d --name exporter-ci \
+            --network container:factorio-ci \
+            -e FACTORIO_HOST=127.0.0.1 \
+            -e RCON_PASSWORD=ci-test \
+            -e POLL_INTERVAL_SECONDS=5 \
+            factorio-exporter:ci
+
+          for i in $(seq 1 12); do
+            if curl -sf http://127.0.0.1:8000/metrics >/dev/null; then break; fi
+            sleep 5
+          done
+
+          tick_1="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          [ -n "${tick_1}" ] || { echo "factorio_tick_total missing from exporter output"; exit 1; }
+
+          sleep 8
+
+          tick_2="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          [ -n "${tick_2}" ] || { echo "factorio_tick_total missing on second poll"; exit 1; }
+          if ! awk -v a="${tick_1}" -v b="${tick_2}" 'BEGIN { exit !(b > a) }'; then
+            echo "factorio_tick_total did not increase across polls (${tick_1} -> ${tick_2}) — RCON polling isn't actually working"
+            exit 1
+          fi
+
+          curl -sf http://127.0.0.1:8000/metrics | grep -q '^factorio_players_connected' || {
+            echo "factorio_players_connected missing from exporter output"; exit 1; }
+
+          # Don't fail on a WARNING here: a single transient poll failure right
+          # after boot (RCON not fully settled yet) followed by a successful
+          # reconnect is the exporter's documented resilience design working
+          # as intended, not a bug — the tick-growth assertion above already
+          # proves polling genuinely works over the test window. Failing the
+          # test on a warning would penalize correct recovery behavior.
+          docker logs exporter-ci
+
+          docker rm -f exporter-ci
+
+      - name: Stop server cleanly
+        run: |
+          set -euo pipefail
           # A clean SIGTERM must save and exit rather than be killed at timeout.
           docker stop -t 30 factorio-ci
           docker logs factorio-ci | tail -20

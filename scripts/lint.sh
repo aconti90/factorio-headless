@@ -21,7 +21,11 @@ fi
 
 echo "==> compose config"
 for f in examples/docker-compose*.yml; do
-  docker compose -f "$f" --env-file examples/.env.example config >/dev/null || fail=1
+  case "$(basename "$f")" in
+    docker-compose.observability.yml) env_file=examples/.env.observability.example ;;
+    *) env_file=examples/.env.example ;;
+  esac
+  docker compose -f "$f" --env-file "$env_file" config >/dev/null || fail=1
 done
 
 echo "==> bash -n"

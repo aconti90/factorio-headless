@@ -6,3 +6,7 @@ data/
 # Local scratch
 *.log
 *.tar.xz
+
+# Python (exporter/)
+__pycache__/
+*.pyc

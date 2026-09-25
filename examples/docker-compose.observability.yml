@@ -1,0 +1,90 @@
+# Factorio + a full Grafana observability stack: factory/server stats via
+# Prometheus, server logs via Loki. One `docker compose up -d` and both
+# dashboards are already provisioned — no manual datasource or dashboard
+# setup in the Grafana UI.
+#
+# The Stats dashboard can be made public (Grafana's built-in public-dashboard
+# feature, a UI toggle on the dashboard's share menu) without exposing the
+# Logs dashboard, which stays behind normal Grafana admin auth.
+
+services:
+  factorio:
+    image: ghcr.io/aconti90/factorio-headless:stable
+    container_name: factorio
+    restart: unless-stopped
+
+    ports:
+      - "34197:34197/udp"
+      - "127.0.0.1:27015:27015/tcp"
+
+    volumes:
+      - ./data:/factorio
+
+    environment:
+      RCON_PASSWORD: "${RCON_PASSWORD:?set RCON_PASSWORD in .env}"
+      # Ships the server console to a file on the volume, which promtail
+      # tails below. Existing entrypoint.sh support — no image change needed.
+      CONSOLE_LOG: /factorio/console.log
+
+  exporter:
+    build: ../exporter
+    container_name: factorio-exporter
+    restart: unless-stopped
+    depends_on:
+      - factorio
+    environment:
+      FACTORIO_HOST: factorio
+      RCON_PORT: "27015"
+      RCON_PASSWORD: "${RCON_PASSWORD:?set RCON_PASSWORD in .env}"
+      POLL_INTERVAL_SECONDS: "10"
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: factorio-prometheus
+    restart: unless-stopped
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: factorio-loki
+    restart: unless-stopped
+    volumes:
+      - ../observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+
+  promtail:
+    image: grafana/promtail:3.6.8
+    container_name: factorio-promtail
+    restart: unless-stopped
+    depends_on:
+      - loki
+    volumes:
+      - ../observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./data:/var/log/factorio:ro
+      - promtail-positions:/data
+    command: ["-config.file=/etc/promtail/config.yml"]
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    container_name: factorio-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}"
+    volumes:
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+  promtail-positions:
