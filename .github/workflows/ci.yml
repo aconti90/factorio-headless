@@ -78,8 +78,13 @@ jobs:
           # runner's host shell once it starts serving metrics. A container using
           # --network container:X cannot itself publish ports, so the publish has
           # to happen on the base container instead.
+          #
+          # AUTO_PAUSE=false so the simulation keeps advancing with zero players
+          # connected — nothing in this job connects an actual game client, and
+          # the exporter integration test below needs game.tick to genuinely
+          # progress across polls, not sit frozen.
           docker run -d --name factorio-ci \
-            -e NAME="CI" -e RCON_PASSWORD=ci-test \
+            -e NAME="CI" -e RCON_PASSWORD=ci-test -e AUTO_PAUSE=false \
             -v "$(mktemp -d):/factorio" \
             -p 8000:8000 \
             factorio-server:ci
@@ -128,6 +133,7 @@ jobs:
           sleep 8
 
           tick_2="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          [ -n "${tick_2}" ] || { echo "factorio_tick_total missing on second poll"; exit 1; }
           if ! awk -v a="${tick_1}" -v b="${tick_2}" 'BEGIN { exit !(b > a) }'; then
             echo "factorio_tick_total did not increase across polls (${tick_1} -> ${tick_2}) — RCON polling isn't actually working"
             exit 1
