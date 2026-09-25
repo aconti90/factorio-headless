@@ -215,6 +215,33 @@ actually matter:
   and your clients on a WireGuard/Tailscale network and connect over that — which
   also avoids exposing the port publicly at all.
 
+## Observability: stats and logs dashboards
+
+`examples/docker-compose.observability.yml` runs Factorio alongside a full
+Grafana stack — Prometheus for factory/server stats (item production rates,
+UPS, player count, power), Loki for readable server logs — with both
+dashboards already provisioned:
+
+```bash
+cp examples/docker-compose.observability.yml docker-compose.yml
+cp examples/.env.observability.example .env      # set RCON_PASSWORD and GRAFANA_ADMIN_PASSWORD
+docker compose up -d
+```
+
+Open Grafana at `http://localhost:3000` (login with the admin password you
+set) and both the **Factorio Stats** and **Factorio Logs** dashboards are
+already there, under the "Factorio" folder — no manual datasource or
+dashboard setup.
+
+To share just the stats dashboard (e.g. on a public status page) without
+exposing the logs dashboard or Grafana login access, use Grafana's built-in
+public-dashboard feature: open the Stats dashboard, use the share menu's
+"Public dashboard" option, and enable it. The Logs dashboard stays behind
+normal Grafana authentication.
+
+The exporter polls Factorio over RCON, so it needs the same `RCON_PASSWORD`
+the `factorio` service uses — no separate credential.
+
 ## Keeping a world running while you work
 
 Factorio has no failure state you can wander into: with `AUTO_PAUSE=false` the
