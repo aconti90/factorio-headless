@@ -1,6 +1,7 @@
 """Factorio RCON -> Prometheus metrics exporter."""
 import json
 import os
+import struct
 import time
 
 from prometheus_client import Counter, Gauge, start_http_server
@@ -68,6 +69,10 @@ def poll_once(client):
     TICK_TOTAL._value.set(tick)
     PLAYERS_CONNECTED.set(players)
 
+    # input=produced, output=consumed — same convention as item stats above; consistent
+    # with Factorio's documented LuaFlowStatistics semantics across item/fluid/electric
+    # flows, though not independently live-tested with real power generation for this
+    # specific case.
     for network_id, (power_in, power_out) in parse_power_stats(client.command(_POWER_COMMAND)).items():
         POWER_PRODUCED.labels(network_id=network_id)._value.set(sum(power_in.values()))
         POWER_CONSUMED.labels(network_id=network_id)._value.set(sum(power_out.values()))
@@ -91,7 +96,7 @@ def main():
                 client.connect()
                 print("[exporter] connected to RCON")
             poll_once(client)
-        except (RconError, ConnectionError, OSError, ValueError) as exc:
+        except (RconError, ConnectionError, OSError, ValueError, KeyError, TypeError, AttributeError, struct.error) as exc:
             print(f"[exporter] WARNING: poll failed ({exc}), will reconnect next cycle")
             if client is not None:
                 client.close()

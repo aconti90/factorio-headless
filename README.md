@@ -222,25 +222,43 @@ Grafana stack — Prometheus for factory/server stats (item production rates,
 UPS, player count, power), Loki for readable server logs — with both
 dashboards already provisioned:
 
+> [!WARNING]
+> **Turning this on disables achievements for the save.** The exporter polls
+> the game over RCON console commands (`/sc`), and Factorio disables
+> achievements for a save the moment any console command runs on it —
+> regardless of what the command actually does. If you care about
+> achievements on a particular save, don't point the exporter at it.
+
 ```bash
 cp examples/.env.observability.example examples/.env
 # edit examples/.env: set RCON_PASSWORD and GRAFANA_ADMIN_PASSWORD
 docker compose -f examples/docker-compose.observability.yml up -d
 ```
 
-Open Grafana at `http://localhost:3000` (login with the admin password you
-set) and both the **Factorio Stats** and **Factorio Logs** dashboards are
-already there, under the "Factorio" folder — no manual datasource or
-dashboard setup.
+`examples/.env` is shared with the other compose examples in this directory —
+`docker-compose.yml` and `docker-compose.pi.yml` also read it for
+`RCON_PASSWORD`. Setting `GRAFANA_ADMIN_PASSWORD` there alongside it doesn't
+conflict with those; it's just additive.
+
+Open Grafana at `http://localhost:3000` and log in as `admin` with the
+password you set as `GRAFANA_ADMIN_PASSWORD` (only the password is
+configured — the username is always `admin`). Both the **Factorio Stats**
+and **Factorio Logs** dashboards are already there, under the "Factorio"
+folder — no manual datasource or dashboard setup.
 
 To share just the stats dashboard (e.g. on a public status page) without
-exposing the logs dashboard or Grafana login access, use Grafana's built-in
-public-dashboard feature: open the Stats dashboard, use the share menu's
-"Public dashboard" option, and enable it. The Logs dashboard stays behind
-normal Grafana authentication.
+exposing the logs dashboard or Grafana login access, use Grafana's
+share/export menu's externally-shared-dashboard option (exact wording drifts
+across Grafana versions — look for "Share externally" or similar) and enable
+it from the Stats dashboard. The Logs dashboard stays behind normal Grafana
+authentication.
 
 The exporter polls Factorio over RCON, so it needs the same `RCON_PASSWORD`
 the `factorio` service uses — no separate credential.
+
+The power metrics scan every electric pole on the map each poll; on a very
+large factory this adds measurable overhead, especially on a Raspberry Pi —
+raise `POLL_INTERVAL_SECONDS` if you notice it.
 
 ## Keeping a world running while you work
 

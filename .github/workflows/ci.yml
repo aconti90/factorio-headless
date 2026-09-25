@@ -26,8 +26,19 @@ jobs:
         run: |
           for f in examples/docker-compose*.yml; do
             echo "==> $f"
-            docker compose -f "$f" --env-file examples/.env.example config >/dev/null
+            case "$(basename "$f")" in
+              docker-compose.observability.yml) env_file=examples/.env.observability.example ;;
+              *) env_file=examples/.env.example ;;
+            esac
+            docker compose -f "$f" --env-file "$env_file" config >/dev/null
           done
+
+      - name: Exporter unit tests
+        run: |
+          pip install -r exporter/requirements.txt
+          cd exporter
+          python3 test_rcon.py
+          python3 test_exporter.py
 
       - name: Hadolint
         uses: hadolint/hadolint-action@v3.1.0
@@ -111,13 +122,25 @@ jobs:
             sleep 5
           done
 
-          metrics="$(curl -sf http://127.0.0.1:8000/metrics)"
-          echo "${metrics}" | grep -q '^factorio_tick_total' || {
-            echo "factorio_tick_total missing from exporter output"; echo "${metrics}"; exit 1; }
-          echo "${metrics}" | grep -q '^factorio_players_connected' || {
-            echo "factorio_players_connected missing from exporter output"; echo "${metrics}"; exit 1; }
+          tick_1="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          [ -n "${tick_1}" ] || { echo "factorio_tick_total missing from exporter output"; exit 1; }
 
-          docker logs exporter-ci
+          sleep 8
+
+          tick_2="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          if ! awk -v a="${tick_1}" -v b="${tick_2}" 'BEGIN { exit !(b > a) }'; then
+            echo "factorio_tick_total did not increase across polls (${tick_1} -> ${tick_2}) — RCON polling isn't actually working"
+            exit 1
+          fi
+
+          curl -sf http://127.0.0.1:8000/metrics | grep -q '^factorio_players_connected' || {
+            echo "factorio_players_connected missing from exporter output"; exit 1; }
+
+          docker logs exporter-ci | tee /tmp/exporter-ci.log
+          if grep -q 'WARNING: poll failed' /tmp/exporter-ci.log; then
+            echo "exporter logged a poll failure during the test"; exit 1
+          fi
+
           docker rm -f exporter-ci
 
       - name: Stop server cleanly

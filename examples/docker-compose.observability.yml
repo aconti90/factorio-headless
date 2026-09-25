@@ -64,6 +64,7 @@ services:
     volumes:
       - ../observability/promtail-config.yml:/etc/promtail/config.yml:ro
       - ./data:/var/log/factorio:ro
+      - promtail-positions:/data
     command: ["-config.file=/etc/promtail/config.yml"]
 
   grafana:
@@ -86,3 +87,4 @@ volumes:
   prometheus-data:
   loki-data:
   grafana-data:
+  promtail-positions:
