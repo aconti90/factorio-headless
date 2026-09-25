@@ -119,7 +119,8 @@ update_one_mod() {
     return 0
   fi
   if ! mv "${tmp_file}" "${MODS_DIR}/${name}_${best_version}.zip"; then
-    warn "${name}: could not move new version into place, leaving ${current_version} in place"
+    warn "${name}: could not move new version into place, ${name} may now be missing"
+    rm -f "${tmp_file}"
     return 0
   fi
 }
