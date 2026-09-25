@@ -235,6 +235,13 @@ cp examples/.env.observability.example examples/.env
 docker compose -f examples/docker-compose.observability.yml up -d
 ```
 
+**On some Docker versions on a Raspberry Pi**, `up -d` fails with `no
+matching manifest for linux/arm64/v8` for the Prometheus/Loki/Promtail/
+Grafana images — those upstream images publish an arm64 build but don't tag
+it with an explicit "v8" variant, and some Docker versions match that
+strictly. If you hit this, uncomment `DOCKER_PLATFORM=linux/arm64` in your
+`.env` and retry; it's a no-op on hosts that don't need it.
+
 `examples/.env` is shared with the other compose examples in this directory —
 `docker-compose.yml` and `docker-compose.pi.yml` also read it for
 `RCON_PASSWORD`. Setting `GRAFANA_ADMIN_PASSWORD` there alongside it doesn't
