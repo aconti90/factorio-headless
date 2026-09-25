@@ -21,7 +21,7 @@ docker.io/aconti90/factorio-headless *
 | **Architectures** | `linux/amd64`, `linux/arm64` — native builds, no emulation at runtime |
 | **Channels** | `stable` and `experimental`, tracked independently |
 | **Updates** | Automatic, within hours of an upstream release |
-| **Base** | `debian:bookworm-slim`, runs as a non-root user |
+| **Base** | `debian:trixie-slim`, runs as a non-root user |
 | **Supply chain** | Checksum-verified downloads where upstream publishes sums, plus SBOM and signed build provenance |
 
 ---
