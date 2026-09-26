@@ -142,6 +142,12 @@ jobs:
           curl -sf http://127.0.0.1:8000/metrics | grep -q '^factorio_players_connected' || {
             echo "factorio_players_connected missing from exporter output"; exit 1; }
 
+          metrics_final="$(curl -sf http://127.0.0.1:8000/metrics)"
+          echo "${metrics_final}" | grep -q '^factorio_evolution_factor' || {
+            echo "factorio_evolution_factor missing from exporter output"; exit 1; }
+          echo "${metrics_final}" | grep -q '^factorio_pollution' || {
+            echo "factorio_pollution missing from exporter output"; exit 1; }
+
           # Don't fail on a WARNING here: a single transient poll failure right
           # after boot (RCON not fully settled yet) followed by a successful
           # reconnect is the exporter's documented resilience design working
