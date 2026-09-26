@@ -1,7 +1,15 @@
 import json
 import unittest
 
-from exporter import parse_globals, parse_item_stats, parse_kill_stats, parse_power_stats, parse_turret_status
+from exporter import (
+    parse_entity_build_stats,
+    parse_fluid_stats,
+    parse_globals,
+    parse_item_stats,
+    parse_kill_stats,
+    parse_power_stats,
+    parse_turret_status,
+)
 
 
 class TestParsing(unittest.TestCase):
@@ -18,10 +26,33 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(output_counts, {})
 
     def test_parse_globals(self):
-        response = json.dumps({"tick": 164302, "players": 2})
-        tick, players = parse_globals(response)
-        self.assertEqual(tick, 164302)
-        self.assertEqual(players, 2)
+        response = json.dumps({
+            "tick": 164302,
+            "players": 2,
+            "evolution": 0.1565,
+            "research": "automation-2",
+            "research_progress": 0.42,
+            "pollution": 802.78,
+        })
+        data = parse_globals(response)
+        self.assertEqual(data["tick"], 164302)
+        self.assertEqual(data["players"], 2)
+        self.assertAlmostEqual(data["evolution"], 0.1565)
+        self.assertEqual(data["research"], "automation-2")
+        self.assertAlmostEqual(data["research_progress"], 0.42)
+        self.assertAlmostEqual(data["pollution"], 802.78)
+
+    def test_parse_globals_no_research(self):
+        response = json.dumps({
+            "tick": 1,
+            "players": 0,
+            "evolution": 0.0,
+            "research": "",
+            "research_progress": 0.0,
+            "pollution": 0.0,
+        })
+        data = parse_globals(response)
+        self.assertEqual(data["research"], "")
 
     def test_parse_power_stats_dedupes_by_network(self):
         # Matches the real shape returned by the power-stats Lua command: one
@@ -52,6 +83,24 @@ class TestKillAndTurretParsing(unittest.TestCase):
 
     def test_parse_turret_status_empty(self):
         self.assertEqual(parse_turret_status(json.dumps({"no_ammo": [], "no_power": []})), ([], []))
+
+
+class TestFactoryWideParsing(unittest.TestCase):
+    def test_parse_fluid_stats(self):
+        response = json.dumps({"input": {"water": 16456.2}, "output": {"steam": 161162.7}})
+        fluid_in, fluid_out = parse_fluid_stats(response)
+        self.assertEqual(fluid_in, {"water": 16456.2})
+        self.assertEqual(fluid_out, {"steam": 161162.7})
+
+    def test_parse_fluid_stats_empty(self):
+        self.assertEqual(parse_fluid_stats(json.dumps({"input": {}, "output": {}})), ({}, {}))
+
+    def test_parse_entity_build_stats(self):
+        response = json.dumps({"transport-belt": 530, "stone-wall": 134})
+        self.assertEqual(parse_entity_build_stats(response), {"transport-belt": 530, "stone-wall": 134})
+
+    def test_parse_entity_build_stats_empty(self):
+        self.assertEqual(parse_entity_build_stats(json.dumps({})), {})
 
 
 if __name__ == "__main__":
