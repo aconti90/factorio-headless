@@ -127,20 +127,48 @@ jobs:
             sleep 5
           done
 
-          tick_1="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          metrics_1="$(curl -sf http://127.0.0.1:8000/metrics)"
+
+          tick_1="$(echo "${metrics_1}" | awk '/^factorio_tick_total /{print $2}')"
           [ -n "${tick_1}" ] || { echo "factorio_tick_total missing from exporter output"; exit 1; }
+
+          # factorio_exporter_last_poll_success_timestamp is only set as the very last
+          # statement of poll_once, after all 7 RCON calls (item stats, globals, power,
+          # kills, turrets, fluids, entity-builds) have succeeded — unlike a plain Gauge
+          # presence check, this proves a full poll cycle actually completed, not just
+          # that the metric was registered at import time. As with tick_1 above, it may
+          # legitimately still read 0 here: metrics_1 is captured as soon as the HTTP
+          # server responds, which can happen before the very first poll cycle finishes.
+          # The real assertion is the growth check after the sleep below.
+          poll_ts_1="$(echo "${metrics_1}" | awk '/^factorio_exporter_last_poll_success_timestamp /{print $2}')"
+          [ -n "${poll_ts_1}" ] || { echo "factorio_exporter_last_poll_success_timestamp missing from exporter output"; exit 1; }
 
           sleep 8
 
-          tick_2="$(curl -sf http://127.0.0.1:8000/metrics | awk '/^factorio_tick_total /{print $2}')"
+          metrics_2="$(curl -sf http://127.0.0.1:8000/metrics)"
+
+          tick_2="$(echo "${metrics_2}" | awk '/^factorio_tick_total /{print $2}')"
           [ -n "${tick_2}" ] || { echo "factorio_tick_total missing on second poll"; exit 1; }
           if ! awk -v a="${tick_1}" -v b="${tick_2}" 'BEGIN { exit !(b > a) }'; then
             echo "factorio_tick_total did not increase across polls (${tick_1} -> ${tick_2}) — RCON polling isn't actually working"
             exit 1
           fi
 
+          poll_ts_2="$(echo "${metrics_2}" | awk '/^factorio_exporter_last_poll_success_timestamp /{print $2}')"
+          [ -n "${poll_ts_2}" ] || { echo "factorio_exporter_last_poll_success_timestamp missing on second poll"; exit 1; }
+          if ! awk -v a="${poll_ts_1}" -v b="${poll_ts_2}" 'BEGIN { exit !(b > a) }'; then
+            echo "factorio_exporter_last_poll_success_timestamp did not advance across polls (${poll_ts_1} -> ${poll_ts_2}) — a full poll cycle (item stats, globals, power, kills, turrets, fluids, entity-builds) never completed successfully twice"
+            exit 1
+          fi
+
           curl -sf http://127.0.0.1:8000/metrics | grep -q '^factorio_players_connected' || {
             echo "factorio_players_connected missing from exporter output"; exit 1; }
+
+          metrics_final="${metrics_2}"
+          echo "${metrics_final}" | grep -q '^factorio_evolution_factor' || {
+            echo "factorio_evolution_factor missing from exporter output"; exit 1; }
+          echo "${metrics_final}" | grep -q '^factorio_pollution' || {
+            echo "factorio_pollution missing from exporter output"; exit 1; }
 
           # Don't fail on a WARNING here: a single transient poll failure right
           # after boot (RCON not fully settled yet) followed by a successful

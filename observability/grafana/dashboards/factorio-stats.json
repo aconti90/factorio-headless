@@ -64,6 +64,146 @@
       "targets": [
         { "expr": "rate(factorio_power_consumed_joules_total[1m])", "legendFormat": "network {{network_id}}", "refId": "A" }
       ]
+    },
+    {
+      "id": 7,
+      "title": "Kills",
+      "type": "piechart",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "factorio_kills_total", "legendFormat": "{{entity}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Losses",
+      "type": "piechart",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        { "expr": "factorio_losses_total", "legendFormat": "{{entity}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Turrets Without Ammo",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 32 },
+      "targets": [
+        { "expr": "factorio_turrets_without_ammo", "legendFormat": "No ammo", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Turrets Without Power",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 32 },
+      "targets": [
+        { "expr": "factorio_turrets_without_power", "legendFormat": "No power", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Evolution Factor",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 32 },
+      "targets": [
+        { "expr": "factorio_evolution_factor", "legendFormat": "Evolution", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Research",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 32 },
+      "targets": [
+        {
+          "expr": "factorio_research_progress * on() group_left(technology) (factorio_research_active == 1)",
+          "legendFormat": "{{technology}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Fluid Production Rate",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        { "expr": "rate(factorio_fluid_produced_total[5m])", "legendFormat": "{{fluid}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Fluid Consumption Rate",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        { "expr": "rate(factorio_fluid_consumed_total[5m])", "legendFormat": "{{fluid}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Entities Built",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "targets": [
+        { "expr": "factorio_entities_built_total", "legendFormat": "{{entity}}", "refId": "A", "format": "table", "instant": true }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Pollution",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "targets": [
+        { "expr": "factorio_pollution", "legendFormat": "Pollution", "refId": "A" }
+      ]
     }
   ]
 }

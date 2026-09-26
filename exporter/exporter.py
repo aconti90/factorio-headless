@@ -14,13 +14,44 @@ TICK_TOTAL = Counter("factorio_tick_total", "Cumulative game ticks simulated")
 PLAYERS_CONNECTED = Gauge("factorio_players_connected", "Currently connected players")
 POWER_PRODUCED = Counter("factorio_power_produced_joules_total", "Cumulative energy produced", ["network_id"])
 POWER_CONSUMED = Counter("factorio_power_consumed_joules_total", "Cumulative energy consumed", ["network_id"])
+KILLS = Counter("factorio_kills_total", "Cumulative enemy entities killed by this force", ["entity"])
+LOSSES = Counter("factorio_losses_total", "Cumulative entities of this force destroyed", ["entity"])
+TURRETS_WITHOUT_AMMO = Gauge("factorio_turrets_without_ammo", "Ammo turrets currently out of ammo")
+TURRETS_WITHOUT_POWER = Gauge("factorio_turrets_without_power", "Electric turrets currently out of power")
+EVOLUTION_FACTOR = Gauge("factorio_evolution_factor", "Enemy evolution factor (0-1)")
+RESEARCH_PROGRESS = Gauge("factorio_research_progress", "Progress of the currently active research (0-1)")
+RESEARCH_ACTIVE = Gauge("factorio_research_active", "1 while this technology is the active research", ["technology"])
+FLUID_PRODUCED = Counter("factorio_fluid_produced_total", "Cumulative fluid produced", ["fluid"])
+FLUID_CONSUMED = Counter("factorio_fluid_consumed_total", "Cumulative fluid consumed", ["fluid"])
+ENTITIES_BUILT = Counter("factorio_entities_built_total", "Cumulative entities ever built", ["entity"])
+POLLUTION = Gauge("factorio_pollution", "Total pollution currently on the surface")
+LAST_POLL_SUCCESS_TIMESTAMP = Gauge(
+    "factorio_exporter_last_poll_success_timestamp", "Unix timestamp of the last fully successful poll cycle"
+)
+
+# Tracks the previously-active research so its factorio_research_active label
+# can be reset to 0 when research moves on — the one piece of state in this
+# otherwise-stateless exporter, needed because a Gauge label that's never
+# explicitly reset stays stuck at its last value forever.
+_last_active_research = None
 
 # All three commands verified live against a real running server during design.
 _ITEM_STATS_COMMAND = (
     "/sc local stats = game.forces.player.get_item_production_statistics(game.surfaces[1]) "
     "rcon.print(helpers.table_to_json({input=stats.input_counts, output=stats.output_counts}))"
 )
-_GLOBALS_COMMAND = "/sc rcon.print(helpers.table_to_json({tick=game.tick, players=#game.connected_players}))"
+# Evolution/research/pollution are cheap single-value reads, folded into this
+# same command rather than becoming separate RCON round-trips.
+_GLOBALS_COMMAND = (
+    "/sc local research = game.forces.player.current_research "
+    "rcon.print(helpers.table_to_json({"
+    "tick=game.tick, players=#game.connected_players, "
+    "evolution=game.forces.enemy.get_evolution_factor(game.surfaces[1]), "
+    "research=research and research.name or '', "
+    "research_progress=game.forces.player.research_progress, "
+    "pollution=game.surfaces[1].get_total_pollution()"
+    "}))"
+)
 _POWER_COMMAND = (
     "/sc local seen = {} local out = {} "
     "for _, pole in pairs(game.surfaces[1].find_entities_filtered{type='electric-pole'}) do "
@@ -28,6 +59,35 @@ _POWER_COMMAND = (
     "if id and not seen[id] then seen[id] = true "
     "out[tostring(id)] = {input=pole.electric_network_statistics.input_counts, output=pole.electric_network_statistics.output_counts} "
     "end end rcon.print(helpers.table_to_json(out))"
+)
+
+# Verified live: a synthetic kill "by" the player force landed in input_counts;
+# a synthetic loss "by" the enemy force landed in output_counts.
+_KILL_STATS_COMMAND = (
+    "/sc local stats = game.forces.player.get_kill_count_statistics(game.surfaces[1]) "
+    "rcon.print(helpers.table_to_json({input=stats.input_counts, output=stats.output_counts}))"
+)
+
+# Verified live: an unloaded ammo turret's turret_ammo inventory reports
+# is_empty() == true; an unpowered electric turret's .energy reads 0.
+_TURRET_STATUS_COMMAND = (
+    "/sc local no_ammo = {} local no_power = {} "
+    "for _, t in pairs(game.surfaces[1].find_entities_filtered{type='ammo-turret'}) do "
+    "if t.get_inventory(defines.inventory.turret_ammo).is_empty() then "
+    "table.insert(no_ammo, {x=t.position.x, y=t.position.y}) end end "
+    "for _, t in pairs(game.surfaces[1].find_entities_filtered{type='electric-turret'}) do "
+    "if t.energy == 0 then table.insert(no_power, {x=t.position.x, y=t.position.y}) end end "
+    "rcon.print(helpers.table_to_json({no_ammo=no_ammo, no_power=no_power}))"
+)
+
+_FLUID_STATS_COMMAND = (
+    "/sc local stats = game.forces.player.get_fluid_production_statistics(game.surfaces[1]) "
+    "rcon.print(helpers.table_to_json({input=stats.input_counts, output=stats.output_counts}))"
+)
+
+_ENTITY_BUILD_COMMAND = (
+    "/sc local stats = game.forces.player.get_entity_build_count_statistics(game.surfaces[1]) "
+    "rcon.print(helpers.table_to_json(stats.input_counts))"
 )
 
 
@@ -38,9 +98,18 @@ def parse_item_stats(response):
 
 
 def parse_globals(response):
-    """Parses the JSON body of _GLOBALS_COMMAND into (tick, players) ints."""
+    """Parses the JSON body of _GLOBALS_COMMAND into a dict with keys tick (int),
+    players (int), evolution (float), research (str, '' if none),
+    research_progress (float), and pollution (float)."""
     data = json.loads(response)
-    return int(data["tick"]), int(data["players"])
+    return {
+        "tick": int(data["tick"]),
+        "players": int(data["players"]),
+        "evolution": float(data["evolution"]),
+        "research": data["research"],
+        "research_progress": float(data["research_progress"]),
+        "pollution": float(data["pollution"]),
+    }
 
 
 def parse_power_stats(response):
@@ -50,6 +119,29 @@ def parse_power_stats(response):
         network_id: (entry.get("input", {}), entry.get("output", {}))
         for network_id, entry in data.items()
     }
+
+
+def parse_kill_stats(response):
+    """Parses the JSON body of _KILL_STATS_COMMAND into (input_counts, output_counts) dicts."""
+    data = json.loads(response)
+    return data.get("input", {}), data.get("output", {})
+
+
+def parse_turret_status(response):
+    """Parses the JSON body of _TURRET_STATUS_COMMAND into (no_ammo_positions, no_power_positions) lists of {x, y} dicts."""
+    data = json.loads(response)
+    return data.get("no_ammo", []), data.get("no_power", [])
+
+
+def parse_fluid_stats(response):
+    """Parses the JSON body of _FLUID_STATS_COMMAND into (input_counts, output_counts) dicts."""
+    data = json.loads(response)
+    return data.get("input", {}), data.get("output", {})
+
+
+def parse_entity_build_stats(response):
+    """Parses the JSON body of _ENTITY_BUILD_COMMAND into a {entity: count} dict."""
+    return json.loads(response)
 
 
 def poll_once(client):
@@ -65,9 +157,20 @@ def poll_once(client):
     for item_name, count in output_counts.items():
         ITEM_CONSUMED.labels(item=item_name)._value.set(count)
 
-    tick, players = parse_globals(client.command(_GLOBALS_COMMAND))
-    TICK_TOTAL._value.set(tick)
-    PLAYERS_CONNECTED.set(players)
+    global _last_active_research
+    globals_data = parse_globals(client.command(_GLOBALS_COMMAND))
+    TICK_TOTAL._value.set(globals_data["tick"])
+    PLAYERS_CONNECTED.set(globals_data["players"])
+    EVOLUTION_FACTOR.set(globals_data["evolution"])
+    RESEARCH_PROGRESS.set(globals_data["research_progress"])
+    POLLUTION.set(globals_data["pollution"])
+
+    current_research = globals_data["research"]
+    if _last_active_research and _last_active_research != current_research:
+        RESEARCH_ACTIVE.labels(technology=_last_active_research).set(0)
+    if current_research:
+        RESEARCH_ACTIVE.labels(technology=current_research).set(1)
+    _last_active_research = current_research or None
 
     # input=produced, output=consumed — same convention as item stats above; consistent
     # with Factorio's documented LuaFlowStatistics semantics across item/fluid/electric
@@ -76,6 +179,31 @@ def poll_once(client):
     for network_id, (power_in, power_out) in parse_power_stats(client.command(_POWER_COMMAND)).items():
         POWER_PRODUCED.labels(network_id=network_id)._value.set(sum(power_in.values()))
         POWER_CONSUMED.labels(network_id=network_id)._value.set(sum(power_out.values()))
+
+    kills_in, kills_out = parse_kill_stats(client.command(_KILL_STATS_COMMAND))
+    for entity_name, count in kills_in.items():
+        KILLS.labels(entity=entity_name)._value.set(count)
+    for entity_name, count in kills_out.items():
+        LOSSES.labels(entity=entity_name)._value.set(count)
+
+    no_ammo, no_power = parse_turret_status(client.command(_TURRET_STATUS_COMMAND))
+    TURRETS_WITHOUT_AMMO.set(len(no_ammo))
+    TURRETS_WITHOUT_POWER.set(len(no_power))
+    for pos in no_ammo:
+        print(f"[exporter] turret out of ammo at ({pos['x']}, {pos['y']})")
+    for pos in no_power:
+        print(f"[exporter] turret out of power at ({pos['x']}, {pos['y']})")
+
+    fluid_in, fluid_out = parse_fluid_stats(client.command(_FLUID_STATS_COMMAND))
+    for fluid_name, count in fluid_in.items():
+        FLUID_PRODUCED.labels(fluid=fluid_name)._value.set(count)
+    for fluid_name, count in fluid_out.items():
+        FLUID_CONSUMED.labels(fluid=fluid_name)._value.set(count)
+
+    for entity_name, count in parse_entity_build_stats(client.command(_ENTITY_BUILD_COMMAND)).items():
+        ENTITIES_BUILT.labels(entity=entity_name)._value.set(count)
+
+    LAST_POLL_SUCCESS_TIMESTAMP.set(time.time())
 
 
 def main():
