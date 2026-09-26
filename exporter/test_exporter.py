@@ -1,7 +1,9 @@
 import json
 import unittest
 
+import exporter
 from exporter import (
+    RESEARCH_ACTIVE,
     parse_entity_build_stats,
     parse_fluid_stats,
     parse_globals,
@@ -9,6 +11,7 @@ from exporter import (
     parse_kill_stats,
     parse_power_stats,
     parse_turret_status,
+    poll_once,
 )
 
 
@@ -101,6 +104,73 @@ class TestFactoryWideParsing(unittest.TestCase):
 
     def test_parse_entity_build_stats_empty(self):
         self.assertEqual(parse_entity_build_stats(json.dumps({})), {})
+
+
+class FakeRconClient:
+    """Stands in for RconClient in poll_once() tests: returns a canned JSON
+    response per command, keyed by exact command text so a poll_once change
+    that adds/reorders RCON calls fails loudly instead of silently."""
+
+    def __init__(self, research="", research_progress=0.0):
+        self._responses = {
+            exporter._ITEM_STATS_COMMAND: json.dumps({"input": {}, "output": {}}),
+            exporter._GLOBALS_COMMAND: json.dumps({
+                "tick": 1,
+                "players": 0,
+                "evolution": 0.0,
+                "research": research,
+                "research_progress": research_progress,
+                "pollution": 0.0,
+            }),
+            exporter._POWER_COMMAND: json.dumps({}),
+            exporter._KILL_STATS_COMMAND: json.dumps({"input": {}, "output": {}}),
+            exporter._TURRET_STATUS_COMMAND: json.dumps({"no_ammo": [], "no_power": []}),
+            exporter._FLUID_STATS_COMMAND: json.dumps({"input": {}, "output": {}}),
+            exporter._ENTITY_BUILD_COMMAND: json.dumps({}),
+        }
+
+    def command(self, command):
+        if command not in self._responses:
+            raise AssertionError(f"FakeRconClient received an unexpected command: {command}")
+        return self._responses[command]
+
+
+class TestPollOnceResearchActiveReset(unittest.TestCase):
+    """Regression coverage for the _last_active_research reset logic in
+    poll_once(). A Gauge only reports labels it has explicitly .set(); without
+    resetting the previous technology's label to 0 when research moves on,
+    that label stays stuck at 1 forever. See exporter.py's module-level
+    comment above _last_active_research."""
+
+    def setUp(self):
+        # _last_active_research is the one piece of cross-poll state in the
+        # exporter; reset it so this test doesn't depend on run order.
+        exporter._last_active_research = None
+
+    def tearDown(self):
+        exporter._last_active_research = None
+
+    def test_switching_active_research_resets_previous_label_to_zero(self):
+        poll_once(FakeRconClient(research="automation-2", research_progress=0.5))
+        self.assertEqual(RESEARCH_ACTIVE.labels(technology="automation-2")._value.get(), 1)
+
+        poll_once(FakeRconClient(research="automation-3", research_progress=0.0))
+        self.assertEqual(
+            RESEARCH_ACTIVE.labels(technology="automation-2")._value.get(), 0,
+            "previous technology's label must be reset to 0, or it stays stuck at 1 forever",
+        )
+        self.assertEqual(RESEARCH_ACTIVE.labels(technology="automation-3")._value.get(), 1)
+
+    def test_research_finishing_with_nothing_queued_resets_label(self):
+        poll_once(FakeRconClient(research="automation-2", research_progress=0.9))
+        self.assertEqual(RESEARCH_ACTIVE.labels(technology="automation-2")._value.get(), 1)
+
+        # Nothing queued next: current_research comes back as '' (no active tech).
+        poll_once(FakeRconClient(research="", research_progress=0.0))
+        self.assertEqual(
+            RESEARCH_ACTIVE.labels(technology="automation-2")._value.get(), 0,
+            "label must be reset to 0 when research stops rather than switches",
+        )
 
 
 if __name__ == "__main__":
