@@ -1,8 +1,10 @@
 import json
+import time
 import unittest
 
 import exporter
 from exporter import (
+    LAST_POLL_SUCCESS_TIMESTAMP,
     RESEARCH_ACTIVE,
     parse_entity_build_stats,
     parse_fluid_stats,
@@ -171,6 +173,20 @@ class TestPollOnceResearchActiveReset(unittest.TestCase):
             RESEARCH_ACTIVE.labels(technology="automation-2")._value.get(), 0,
             "label must be reset to 0 when research stops rather than switches",
         )
+
+
+class TestPollOnceLastSuccessTimestamp(unittest.TestCase):
+    """LAST_POLL_SUCCESS_TIMESTAMP must only advance once every RCON call in
+    poll_once() (item stats, globals, power, kills, turrets, fluids,
+    entity-builds) has succeeded — it's the CI signal that a full poll cycle
+    actually completed, not just that the metric was registered on import."""
+
+    def test_set_after_full_successful_poll(self):
+        before = time.time()
+        poll_once(FakeRconClient())
+        after = time.time()
+        self.assertGreaterEqual(LAST_POLL_SUCCESS_TIMESTAMP._value.get(), before)
+        self.assertLessEqual(LAST_POLL_SUCCESS_TIMESTAMP._value.get(), after)
 
 
 if __name__ == "__main__":

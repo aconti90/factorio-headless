@@ -25,6 +25,9 @@ FLUID_PRODUCED = Counter("factorio_fluid_produced_total", "Cumulative fluid prod
 FLUID_CONSUMED = Counter("factorio_fluid_consumed_total", "Cumulative fluid consumed", ["fluid"])
 ENTITIES_BUILT = Counter("factorio_entities_built_total", "Cumulative entities ever built", ["entity"])
 POLLUTION = Gauge("factorio_pollution", "Total pollution currently on the surface")
+LAST_POLL_SUCCESS_TIMESTAMP = Gauge(
+    "factorio_exporter_last_poll_success_timestamp", "Unix timestamp of the last fully successful poll cycle"
+)
 
 # Tracks the previously-active research so its factorio_research_active label
 # can be reset to 0 when research moves on — the one piece of state in this
@@ -199,6 +202,8 @@ def poll_once(client):
 
     for entity_name, count in parse_entity_build_stats(client.command(_ENTITY_BUILD_COMMAND)).items():
         ENTITIES_BUILT.labels(entity=entity_name)._value.set(count)
+
+    LAST_POLL_SUCCESS_TIMESTAMP.set(time.time())
 
 
 def main():
