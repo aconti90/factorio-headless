@@ -136,13 +136,12 @@ jobs:
           # statement of poll_once, after all 7 RCON calls (item stats, globals, power,
           # kills, turrets, fluids, entity-builds) have succeeded — unlike a plain Gauge
           # presence check, this proves a full poll cycle actually completed, not just
-          # that the metric was registered at import time.
+          # that the metric was registered at import time. As with tick_1 above, it may
+          # legitimately still read 0 here: metrics_1 is captured as soon as the HTTP
+          # server responds, which can happen before the very first poll cycle finishes.
+          # The real assertion is the growth check after the sleep below.
           poll_ts_1="$(echo "${metrics_1}" | awk '/^factorio_exporter_last_poll_success_timestamp /{print $2}')"
           [ -n "${poll_ts_1}" ] || { echo "factorio_exporter_last_poll_success_timestamp missing from exporter output"; exit 1; }
-          if ! awk -v a="${poll_ts_1}" 'BEGIN { exit !(a > 0) }'; then
-            echo "factorio_exporter_last_poll_success_timestamp is zero — poll_once never completed a full successful cycle"
-            exit 1
-          fi
 
           sleep 8
 
