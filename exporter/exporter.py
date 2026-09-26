@@ -14,6 +14,10 @@ TICK_TOTAL = Counter("factorio_tick_total", "Cumulative game ticks simulated")
 PLAYERS_CONNECTED = Gauge("factorio_players_connected", "Currently connected players")
 POWER_PRODUCED = Counter("factorio_power_produced_joules_total", "Cumulative energy produced", ["network_id"])
 POWER_CONSUMED = Counter("factorio_power_consumed_joules_total", "Cumulative energy consumed", ["network_id"])
+KILLS = Counter("factorio_kills_total", "Cumulative enemy entities killed by this force", ["entity"])
+LOSSES = Counter("factorio_losses_total", "Cumulative entities of this force destroyed", ["entity"])
+TURRETS_WITHOUT_AMMO = Gauge("factorio_turrets_without_ammo", "Ammo turrets currently out of ammo")
+TURRETS_WITHOUT_POWER = Gauge("factorio_turrets_without_power", "Electric turrets currently out of power")
 
 # All three commands verified live against a real running server during design.
 _ITEM_STATS_COMMAND = (
@@ -28,6 +32,25 @@ _POWER_COMMAND = (
     "if id and not seen[id] then seen[id] = true "
     "out[tostring(id)] = {input=pole.electric_network_statistics.input_counts, output=pole.electric_network_statistics.output_counts} "
     "end end rcon.print(helpers.table_to_json(out))"
+)
+
+# Verified live: a synthetic kill "by" the player force landed in input_counts;
+# a synthetic loss "by" the enemy force landed in output_counts.
+_KILL_STATS_COMMAND = (
+    "/sc local stats = game.forces.player.get_kill_count_statistics(game.surfaces[1]) "
+    "rcon.print(helpers.table_to_json({input=stats.input_counts, output=stats.output_counts}))"
+)
+
+# Verified live: an unloaded ammo turret's turret_ammo inventory reports
+# is_empty() == true; an unpowered electric turret's .energy reads 0.
+_TURRET_STATUS_COMMAND = (
+    "/sc local no_ammo = {} local no_power = {} "
+    "for _, t in pairs(game.surfaces[1].find_entities_filtered{type='ammo-turret'}) do "
+    "if t.get_inventory(defines.inventory.turret_ammo).is_empty() then "
+    "table.insert(no_ammo, {x=t.position.x, y=t.position.y}) end end "
+    "for _, t in pairs(game.surfaces[1].find_entities_filtered{type='electric-turret'}) do "
+    "if t.energy == 0 then table.insert(no_power, {x=t.position.x, y=t.position.y}) end end "
+    "rcon.print(helpers.table_to_json({no_ammo=no_ammo, no_power=no_power}))"
 )
 
 
@@ -50,6 +73,18 @@ def parse_power_stats(response):
         network_id: (entry.get("input", {}), entry.get("output", {}))
         for network_id, entry in data.items()
     }
+
+
+def parse_kill_stats(response):
+    """Parses the JSON body of _KILL_STATS_COMMAND into (input_counts, output_counts) dicts."""
+    data = json.loads(response)
+    return data.get("input", {}), data.get("output", {})
+
+
+def parse_turret_status(response):
+    """Parses the JSON body of _TURRET_STATUS_COMMAND into (no_ammo_positions, no_power_positions) lists of {x, y} dicts."""
+    data = json.loads(response)
+    return data.get("no_ammo", []), data.get("no_power", [])
 
 
 def poll_once(client):
@@ -76,6 +111,20 @@ def poll_once(client):
     for network_id, (power_in, power_out) in parse_power_stats(client.command(_POWER_COMMAND)).items():
         POWER_PRODUCED.labels(network_id=network_id)._value.set(sum(power_in.values()))
         POWER_CONSUMED.labels(network_id=network_id)._value.set(sum(power_out.values()))
+
+    kills_in, kills_out = parse_kill_stats(client.command(_KILL_STATS_COMMAND))
+    for entity_name, count in kills_in.items():
+        KILLS.labels(entity=entity_name)._value.set(count)
+    for entity_name, count in kills_out.items():
+        LOSSES.labels(entity=entity_name)._value.set(count)
+
+    no_ammo, no_power = parse_turret_status(client.command(_TURRET_STATUS_COMMAND))
+    TURRETS_WITHOUT_AMMO.set(len(no_ammo))
+    TURRETS_WITHOUT_POWER.set(len(no_power))
+    for pos in no_ammo:
+        print(f"[exporter] turret out of ammo at ({pos['x']}, {pos['y']})")
+    for pos in no_power:
+        print(f"[exporter] turret out of power at ({pos['x']}, {pos['y']})")
 
 
 def main():

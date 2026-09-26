@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from exporter import parse_globals, parse_item_stats, parse_power_stats
+from exporter import parse_globals, parse_item_stats, parse_kill_stats, parse_power_stats, parse_turret_status
 
 
 class TestParsing(unittest.TestCase):
@@ -32,6 +32,26 @@ class TestParsing(unittest.TestCase):
 
     def test_parse_power_stats_empty(self):
         self.assertEqual(parse_power_stats("{}"), {})
+
+
+class TestKillAndTurretParsing(unittest.TestCase):
+    def test_parse_kill_stats(self):
+        response = json.dumps({"input": {"small-biter": 3}, "output": {"stone-wall": 1}})
+        kills_in, kills_out = parse_kill_stats(response)
+        self.assertEqual(kills_in, {"small-biter": 3})
+        self.assertEqual(kills_out, {"stone-wall": 1})
+
+    def test_parse_kill_stats_empty(self):
+        self.assertEqual(parse_kill_stats(json.dumps({"input": {}, "output": {}})), ({}, {}))
+
+    def test_parse_turret_status(self):
+        response = json.dumps({"no_ammo": [{"x": 30, "y": 30}], "no_power": []})
+        no_ammo, no_power = parse_turret_status(response)
+        self.assertEqual(no_ammo, [{"x": 30, "y": 30}])
+        self.assertEqual(no_power, [])
+
+    def test_parse_turret_status_empty(self):
+        self.assertEqual(parse_turret_status(json.dumps({"no_ammo": [], "no_power": []})), ([], []))
 
 
 if __name__ == "__main__":
