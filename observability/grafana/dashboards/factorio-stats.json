@@ -52,7 +52,7 @@
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
-        { "expr": "rate(factorio_power_produced_joules_total[1m])", "legendFormat": "network {{network_id}}", "refId": "A" }
+        { "expr": "rate(factorio_power_produced_joules_total[1m])", "legendFormat": "Produced", "refId": "A" }
       ]
     },
     {
@@ -62,7 +62,7 @@
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
-        { "expr": "rate(factorio_power_consumed_joules_total[1m])", "legendFormat": "network {{network_id}}", "refId": "A" }
+        { "expr": "rate(factorio_power_consumed_joules_total[1m])", "legendFormat": "Consumed", "refId": "A" }
       ]
     },
     {

@@ -5,6 +5,8 @@ import unittest
 import exporter
 from exporter import (
     LAST_POLL_SUCCESS_TIMESTAMP,
+    POWER_CONSUMED,
+    POWER_PRODUCED,
     RESEARCH_ACTIVE,
     parse_entity_build_stats,
     parse_fluid_stats,
@@ -113,7 +115,7 @@ class FakeRconClient:
     response per command, keyed by exact command text so a poll_once change
     that adds/reorders RCON calls fails loudly instead of silently."""
 
-    def __init__(self, research="", research_progress=0.0):
+    def __init__(self, research="", research_progress=0.0, power_stats=None):
         self._responses = {
             exporter._ITEM_STATS_COMMAND: json.dumps({"input": {}, "output": {}}),
             exporter._GLOBALS_COMMAND: json.dumps({
@@ -124,7 +126,7 @@ class FakeRconClient:
                 "research_progress": research_progress,
                 "pollution": 0.0,
             }),
-            exporter._POWER_COMMAND: json.dumps({}),
+            exporter._POWER_COMMAND: json.dumps(power_stats or {}),
             exporter._KILL_STATS_COMMAND: json.dumps({"input": {}, "output": {}}),
             exporter._TURRET_STATUS_COMMAND: json.dumps({"no_ammo": [], "no_power": []}),
             exporter._FLUID_STATS_COMMAND: json.dumps({"input": {}, "output": {}}),
@@ -173,6 +175,27 @@ class TestPollOnceResearchActiveReset(unittest.TestCase):
             RESEARCH_ACTIVE.labels(technology="automation-2")._value.get(), 0,
             "label must be reset to 0 when research stops rather than switches",
         )
+
+
+class TestPollOncePowerSummedAcrossNetworks(unittest.TestCase):
+    """factorio_power_produced/consumed_joules_total carry no network_id label:
+    electric_network_id is reassigned by the game whenever a network's wiring
+    topology changes, so labeling by it would grow an unbounded number of
+    permanent series over a play session instead of tracking anything stable.
+    poll_once must sum every network's contribution into the one series."""
+
+    def test_power_from_multiple_networks_is_summed(self):
+        poll_once(FakeRconClient(power_stats={
+            "3": {"input": {"solar-panel": 500}, "output": {"electric-mining-drill": 200}},
+            "7": {"input": {"steam-engine": 1000}, "output": {"lab": 50}},
+        }))
+        self.assertEqual(POWER_PRODUCED._value.get(), 1500)
+        self.assertEqual(POWER_CONSUMED._value.get(), 250)
+
+    def test_power_with_no_networks_is_zero(self):
+        poll_once(FakeRconClient(power_stats={}))
+        self.assertEqual(POWER_PRODUCED._value.get(), 0)
+        self.assertEqual(POWER_CONSUMED._value.get(), 0)
 
 
 class TestPollOnceLastSuccessTimestamp(unittest.TestCase):

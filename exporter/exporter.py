@@ -12,8 +12,8 @@ ITEM_PRODUCED = Counter("factorio_item_produced_total", "Cumulative items produc
 ITEM_CONSUMED = Counter("factorio_item_consumed_total", "Cumulative items consumed", ["item"])
 TICK_TOTAL = Counter("factorio_tick_total", "Cumulative game ticks simulated")
 PLAYERS_CONNECTED = Gauge("factorio_players_connected", "Currently connected players")
-POWER_PRODUCED = Counter("factorio_power_produced_joules_total", "Cumulative energy produced", ["network_id"])
-POWER_CONSUMED = Counter("factorio_power_consumed_joules_total", "Cumulative energy consumed", ["network_id"])
+POWER_PRODUCED = Counter("factorio_power_produced_joules_total", "Cumulative energy produced")
+POWER_CONSUMED = Counter("factorio_power_consumed_joules_total", "Cumulative energy consumed")
 KILLS = Counter("factorio_kills_total", "Cumulative enemy entities killed by this force", ["entity"])
 LOSSES = Counter("factorio_losses_total", "Cumulative entities of this force destroyed", ["entity"])
 TURRETS_WITHOUT_AMMO = Gauge("factorio_turrets_without_ammo", "Ammo turrets currently out of ammo")
@@ -176,9 +176,15 @@ def poll_once(client):
     # with Factorio's documented LuaFlowStatistics semantics across item/fluid/electric
     # flows, though not independently live-tested with real power generation for this
     # specific case.
-    for network_id, (power_in, power_out) in parse_power_stats(client.command(_POWER_COMMAND)).items():
-        POWER_PRODUCED.labels(network_id=network_id)._value.set(sum(power_in.values()))
-        POWER_CONSUMED.labels(network_id=network_id)._value.set(sum(power_out.values()))
+    #
+    # Summed across networks rather than labeled by electric_network_id: that id is
+    # reassigned by the game whenever the network's wiring topology changes (a pole
+    # added or removed), even for what is still, functionally, the same network — so
+    # labeling by it grows an unbounded number of permanent Prometheus series over a
+    # play session instead of tracking anything stable.
+    power_stats = parse_power_stats(client.command(_POWER_COMMAND)).values()
+    POWER_PRODUCED._value.set(sum(sum(power_in.values()) for power_in, _ in power_stats))
+    POWER_CONSUMED._value.set(sum(sum(power_out.values()) for _, power_out in power_stats))
 
     kills_in, kills_out = parse_kill_stats(client.command(_KILL_STATS_COMMAND))
     for entity_name, count in kills_in.items():
