@@ -123,5 +123,10 @@ volumes:
 # without publishing a new host port. Only Grafana is on it — Prometheus,
 # Loki, and Promtail stay on the default network since nothing external
 # needs to reach them.
+#
+# Note: `docker compose down` will try to remove this network, which fails
+# (or leaves things in a bad state) if another stack is still attached to it.
+# Make sure to bring down any external stacks using this network first.
 networks:
   factorio-tunnel:
+    name: factorio-tunnel
