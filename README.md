@@ -254,6 +254,13 @@ strictly. If you hit this, uncomment `DOCKER_PLATFORM=linux/arm64` in your
 `RCON_PASSWORD`. Setting `GRAFANA_ADMIN_PASSWORD` there alongside it doesn't
 conflict with those; it's just additive.
 
+**External stacks on the `factorio-tunnel` network**: the observability stack
+creates a Docker network called `factorio-tunnel`, and a separate out-of-repo
+compose file can join it as `external: true` (e.g. a Cloudflare Tunnel stack)
+to reach Grafana at `http://factorio-grafana:3000` without publishing a new
+host port. The observability stack must be started first since it creates the
+network.
+
 Open Grafana at `http://localhost:3000` (or whatever `GRAFANA_PORT` you set,
 if you already had something on 3000) and log in as `admin` with the
 password you set as `GRAFANA_ADMIN_PASSWORD` (only the password is
