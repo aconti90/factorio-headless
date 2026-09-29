@@ -107,9 +107,21 @@ services:
       - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
+    networks:
+      - default
+      - factorio-tunnel
 
 volumes:
   prometheus-data:
   loki-data:
   grafana-data:
   promtail-positions:
+
+# `factorio-tunnel` lets a separate docker-compose stack (e.g. one running
+# a Cloudflare Tunnel container) join this network as `external: true` and
+# reach Grafana directly by container name (http://factorio-grafana:3000),
+# without publishing a new host port. Only Grafana is on it — Prometheus,
+# Loki, and Promtail stay on the default network since nothing external
+# needs to reach them.
+networks:
+  factorio-tunnel:
