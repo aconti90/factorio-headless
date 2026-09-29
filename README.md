@@ -268,6 +268,21 @@ across Grafana versions — look for "Share externally" or similar) and enable
 it from the Stats dashboard. The Logs dashboard stays behind normal Grafana
 authentication.
 
+### See it live
+
+Here's the **Factorio Stats** dashboard, [running publicly](https://factorio-stats.alexconti.com/public-dashboards/d2794e00cb1e4c0189af4db31f4c0869?from=now-3h&to=now&timezone=browser) off this exact setup:
+
+| | |
+|---|---|
+| ![Item production, consumption, and power](docs/images/grafana-production.png) | ![Kills, losses, turret status, evolution, and research](docs/images/grafana-combat.png) |
+| ![Fluid rates, entities built, and pollution](docs/images/grafana-fluids.png) | |
+
+> [!NOTE]
+> That's my own dashboard, running on a Raspberry Pi on my home server. I
+> don't play all that often, and I use editor mode to test stuff on the
+> server — so if you catch it looking odd, the base may just be idle, mid
+> experiment, or paused.
+
 The exporter polls Factorio over RCON, so it needs the same `RCON_PASSWORD`
 the `factorio` service uses — no separate credential.
 
